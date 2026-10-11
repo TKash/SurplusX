@@ -39,7 +39,11 @@ export interface Database {
           id: string
           seller_id: string
           category: string
+          title: string | null
           spec: string | null
+          gsm: number | null
+          width_cm: number | null
+          colour: string | null
           quantity: number
           unit: LotUnit
           price_per_unit: number
@@ -58,7 +62,11 @@ export interface Database {
           id?: string
           seller_id: string
           category: string
+          title?: string | null
           spec?: string | null
+          gsm?: number | null
+          width_cm?: number | null
+          colour?: string | null
           quantity: number
           unit: LotUnit
           price_per_unit: number
@@ -89,7 +97,12 @@ export interface Database {
           lot_id: string
           buyer_id: string
           status: ClaimStatus
-          reserved_until: string
+          // Null until the seller accepts: the 48h hold starts then, not when the request is sent.
+          reserved_until: string | null
+          offer_price: number | null
+          offer_quantity: number | null
+          message: string | null
+          responded_at: string | null
           created_at: string
         }
         Insert: {
@@ -97,7 +110,11 @@ export interface Database {
           lot_id: string
           buyer_id: string
           status?: ClaimStatus
-          reserved_until: string
+          reserved_until?: string | null
+          offer_price?: number | null
+          offer_quantity?: number | null
+          message?: string | null
+          responded_at?: string | null
           created_at?: string
         }
         Update: Partial<Database['public']['Tables']['claims']['Insert']>
@@ -111,6 +128,62 @@ export interface Database {
           {
             foreignKeyName: 'claims_buyer_id_fkey'
             columns: ['buyer_id']
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      swatch_requests: {
+        Row: {
+          id: string
+          lot_id: string
+          buyer_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          lot_id: string
+          buyer_id: string
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['swatch_requests']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'swatch_requests_lot_id_fkey'
+            columns: ['lot_id']
+            referencedRelation: 'lots'
+            referencedColumns: ['id']
+          },
+          {
+            foreignKeyName: 'swatch_requests_buyer_id_fkey'
+            columns: ['buyer_id']
+            referencedRelation: 'profiles'
+            referencedColumns: ['id']
+          },
+        ]
+      }
+      saved_searches: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          filters: Record<string, string>
+          last_seen_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          filters?: Record<string, string>
+          last_seen_at?: string
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['saved_searches']['Insert']>
+        Relationships: [
+          {
+            foreignKeyName: 'saved_searches_user_id_fkey'
+            columns: ['user_id']
             referencedRelation: 'profiles'
             referencedColumns: ['id']
           },

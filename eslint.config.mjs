@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Snapshot of the previous marketing site, kept for reference and not built.
+    "archive/**",
   ]),
 ]);
 

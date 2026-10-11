@@ -481,7 +481,7 @@ the CTA correctly routing to `/login`.
 >   served only `public/` and 404'd every route). Deployment Protection is off.
 >   Production env vars are set in Vercel; `NEXT_PUBLIC_APP_URL` =
 >   `https://loomover.vercel.app`.
-> - Branded **Loomover**; `app/page.tsx` is a GSAP-animated marketing site with
+> - Branded **SurplusX**; `app/page.tsx` is a GSAP-animated marketing site with
 >   an inline phone sign-up form (`components/PhoneSignupForm.tsx`).
 > - **Login codes**: SMS to Indian numbers now fails (Twilio error 30008,
 >   carrier filtering -- no DLT). Decision: move OTP to **WhatsApp**.

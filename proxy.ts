@@ -1,8 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { SESSION_ONLY_COOKIE, applySessionPreference } from '@/lib/supabase/session-cookies'
 
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request })
+  const sessionOnly = request.cookies.get(SESSION_ONLY_COOKIE)?.value === '1'
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -17,7 +19,8 @@ export async function proxy(request: NextRequest) {
             request.cookies.set(name, value)
           }
           response = NextResponse.next({ request })
-          for (const { name, value, options } of cookiesToSet) {
+          for (const cookie of cookiesToSet) {
+            const { name, value, options } = applySessionPreference(cookie, sessionOnly)
             response.cookies.set(name, value, options)
           }
         },

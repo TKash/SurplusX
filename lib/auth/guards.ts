@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 
@@ -5,7 +6,10 @@ import { createClient } from '@/lib/supabase/server'
 // session -- lots.seller_id and claims.buyer_id both have FK constraints on
 // profiles(id), so posting/claiming fails otherwise. Centralized here so no
 // page can accidentally skip the onboarding check the way feed/page.tsx did.
-export async function requireProfile() {
+//
+// Wrapped in React's cache() so the (app) layout and the page it wraps share one auth + profile
+// lookup per request instead of each doing their own.
+export const requireProfile = cache(async () => {
   const supabase = await createClient()
   const {
     data: { user },
@@ -20,4 +24,4 @@ export async function requireProfile() {
   if (!profile) redirect('/onboarding')
 
   return { supabase, user, profile }
-}
+})

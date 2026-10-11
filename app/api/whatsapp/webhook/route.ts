@@ -35,7 +35,10 @@ function reply(message: string) {
 
 function summarize(fields: ExtractedListing) {
   const bits = [
-    fields.category,
+    fields.title ?? fields.category,
+    fields.gsm ? `${fields.gsm} GSM` : null,
+    fields.width_cm ? `${fields.width_cm} cm wide` : null,
+    fields.colour,
     fields.spec,
     fields.quantity && fields.unit ? `${fields.quantity} ${fields.unit}` : null,
     fields.price_per_unit ? `Rs ${fields.price_per_unit}/${fields.unit ?? 'unit'}` : null,
@@ -305,7 +308,11 @@ async function publishDraft(
     .insert({
       seller_id: profileId,
       category: fields.category!,
+      title: fields.title,
       spec: fields.spec,
+      gsm: fields.gsm,
+      width_cm: fields.width_cm,
+      colour: fields.colour,
       quantity: fields.quantity!,
       unit: fields.unit!,
       price_per_unit: fields.price_per_unit!,

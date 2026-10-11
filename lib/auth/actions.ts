@@ -1,12 +1,18 @@
 'use server'
 
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { OTP_CHANNEL } from './otp-channel'
 import { normalizePhone } from './phone'
 import { createClient } from '@/lib/supabase/server'
+import { SESSION_ONLY_COOKIE } from '@/lib/supabase/session-cookies'
 import type { UserRole } from '@/types/database.types'
 
-export async function requestOtp(_prevState: unknown, formData: FormData) {
+export type RequestOtpState = { error?: string; sent?: string } | null
+
+// Sends the code and reports back instead of redirecting: the sign-in page opens its code modal
+// in place, and the homepage form forwards to /login with the number.
+export async function requestOtp(_prevState: unknown, formData: FormData): Promise<RequestOtpState> {
   const phone = normalizePhone(String(formData.get('phone') || ''))
   if (!phone) return { error: 'Enter a valid 10-digit mobile number.' }
 
@@ -14,14 +20,14 @@ export async function requestOtp(_prevState: unknown, formData: FormData) {
   const { error } = await supabase.auth.signInWithOtp({ phone, options: { channel: OTP_CHANNEL } })
   if (error) {
     // Network failures reaching Supabase surface as a bare "fetch failed" -- not
-    // something to show a visitor on the marketing page.
+    // something to show a visitor.
     if (error.name === 'AuthRetryableFetchError' || error.message === 'fetch failed') {
       return { error: "We couldn't send a code right now. Please try again in a minute." }
     }
     return { error: error.message }
   }
 
-  redirect(`/verify?phone=${encodeURIComponent(phone)}`)
+  return { sent: phone }
 }
 
 export async function verifyOtp(_prevState: unknown, formData: FormData) {
@@ -29,7 +35,21 @@ export async function verifyOtp(_prevState: unknown, formData: FormData) {
   const token = String(formData.get('token') || '').trim()
   if (!phone || !token) return { error: 'Enter the code sent to your phone.' }
 
-  const supabase = await createClient()
+  // "Keep me signed in" unchecked = browser-session cookies (see lib/supabase/session-cookies).
+  const sessionOnly = formData.get('remember') !== 'on'
+  const cookieStore = await cookies()
+  if (sessionOnly) {
+    cookieStore.set(SESSION_ONLY_COOKIE, '1', {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+    })
+  } else {
+    cookieStore.delete(SESSION_ONLY_COOKIE)
+  }
+
+  const supabase = await createClient({ sessionOnly })
   const { data, error } = await supabase.auth.verifyOtp({ phone, token, type: 'sms' })
   if (error) return { error: error.message }
 
@@ -74,5 +94,6 @@ export async function completeOnboarding(_prevState: unknown, formData: FormData
 export async function signOut() {
   const supabase = await createClient()
   await supabase.auth.signOut()
+  ;(await cookies()).delete(SESSION_ONLY_COOKIE)
   redirect('/login')
 }
