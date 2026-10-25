@@ -19,7 +19,8 @@ import {
 type Client = SupabaseClient<Database>
 
 const PROFILE_SUMMARY = 'full_name, company_name, city, whatsapp_number'
-const LOT_WITH_SELLER = `*, profiles(${PROFILE_SUMMARY})`
+// lots has two links to profiles (seller_id and verified_by), so the seller join must be named.
+const LOT_WITH_SELLER = `*, profiles!lots_seller_id_fkey(${PROFILE_SUMMARY})`
 
 export const FEED_PAGE_SIZE = 60
 

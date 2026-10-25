@@ -54,7 +54,7 @@ type ServerClient = Awaited<ReturnType<typeof createClient>>
 async function loadLot(supabase: ServerClient, lotId: string) {
   const { data } = await supabase
     .from('lots')
-    .select(`${LOT_FIELDS}, profiles(${PROFILE_FIELDS})`)
+    .select(`${LOT_FIELDS}, profiles!lots_seller_id_fkey(${PROFILE_FIELDS})`)
     .eq('id', lotId)
     .maybeSingle()
   return data as unknown as LotForAction | null
@@ -233,7 +233,7 @@ export async function setVerificationAction(
       verified_by: verified ? user.id : null,
     })
     .eq('id', lotId)
-    .select(`id, title, category, quantity, unit, seller_id, profiles(${PROFILE_FIELDS})`)
+    .select(`id, title, category, quantity, unit, seller_id, profiles!lots_seller_id_fkey(${PROFILE_FIELDS})`)
     .maybeSingle()
 
   if (error) return failure(error, 'Could not update verification.')
