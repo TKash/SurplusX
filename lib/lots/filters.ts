@@ -1,4 +1,4 @@
-import { LOT_CATEGORIES } from '@/lib/constants'
+import { LOT_CATEGORIES } from './categories'
 
 // Feed search, filters and sort, shared by the feed page, the filter UI and saved searches (which
 // store the same keys). Everything is parsed from URL params and validated against the known
@@ -8,12 +8,12 @@ export type FeedFilters = {
   q?: string
   category?: string
   qty?: string
-  gsm?: string
   price?: string
+  verified?: string
   sort?: string
 }
 
-export type FilterKey = 'q' | 'category' | 'qty' | 'gsm' | 'price'
+export type FilterKey = 'q' | 'category' | 'qty' | 'price' | 'verified'
 
 type Band = { label: string; min: number | null; max: number | null }
 
@@ -21,12 +21,6 @@ export const QTY_BANDS: Record<string, Band> = {
   'under-500': { label: 'Under 500', min: null, max: 500 },
   '500-2000': { label: '500 – 2,000', min: 500, max: 2000 },
   '2000-plus': { label: '2,000+', min: 2000, max: null },
-}
-
-export const GSM_BANDS: Record<string, Band> = {
-  light: { label: 'Under 120', min: null, max: 120 },
-  medium: { label: '120 – 200', min: 120, max: 200 },
-  heavy: { label: '200+', min: 200, max: null },
 }
 
 export const PRICE_BANDS: Record<string, Band> = {
@@ -42,7 +36,7 @@ export const SORTS: Record<string, string> = {
   'qty-desc': 'Largest lots first',
 }
 
-const FILTER_KEYS: FilterKey[] = ['q', 'category', 'qty', 'gsm', 'price']
+const FILTER_KEYS: FilterKey[] = ['q', 'category', 'qty', 'price', 'verified']
 
 type RawParams = Record<string, string | string[] | undefined>
 
@@ -62,8 +56,8 @@ export function parseFeedFilters(params: RawParams): FeedFilters {
     q: first(params.q)?.slice(0, 80),
     category: oneOf(first(params.category), LOT_CATEGORIES),
     qty: oneOf(first(params.qty), QTY_BANDS),
-    gsm: oneOf(first(params.gsm), GSM_BANDS),
     price: oneOf(first(params.price), PRICE_BANDS),
+    verified: first(params.verified) === '1' ? '1' : undefined,
     sort: oneOf(first(params.sort), SORTS),
   }
 }
@@ -91,13 +85,13 @@ export function feedHref(filters: FeedFilters, overrides: Partial<FeedFilters> =
   return qs ? `/feed?${qs}` : '/feed'
 }
 
-// A readable name for a saved search, e.g. `Linen · 200+ GSM · "sage"`.
+// A readable name for a saved search, e.g. `Fabrics · 2,000+ qty · "sage"`.
 export function describeFilters(filters: FeedFilters) {
   const parts = [
     filters.category,
-    filters.gsm && `${GSM_BANDS[filters.gsm].label} GSM`,
     filters.qty && `${QTY_BANDS[filters.qty].label} qty`,
     filters.price && PRICE_BANDS[filters.price].label,
+    filters.verified && 'verified',
     filters.q && `“${filters.q}”`,
   ].filter(Boolean)
   return parts.length ? parts.join(' · ') : 'All lots'
@@ -114,7 +108,6 @@ export function sanitizeSearch(q: string) {
 // from an async function would execute the query.
 type Filterable = {
   eq(column: string, value: unknown): Filterable
-  ilike(column: string, pattern: string): Filterable
   gte(column: string, value: unknown): Filterable
   lt(column: string, value: unknown): Filterable
   or(filters: string): Filterable
@@ -133,11 +126,9 @@ function applyBand(query: Filterable, column: string, band: Band | undefined) {
 export function applyFeedFilters<Q>(query: Q, filters: FeedFilters, matchingSellerIds: string[] = []): Q {
   let q = query as unknown as Filterable
 
-  // ilike without wildcards = case-insensitive exact match: older WhatsApp lots have "cotton", the
-  // chips say "Cotton". Category names contain no LIKE wildcards (% or _).
-  if (filters.category) q = q.ilike('category', filters.category)
+  if (filters.category) q = q.eq('category', filters.category)
+  if (filters.verified) q = q.eq('verification', 'verified')
   q = applyBand(q, 'quantity', filters.qty ? QTY_BANDS[filters.qty] : undefined)
-  q = applyBand(q, 'gsm', filters.gsm ? GSM_BANDS[filters.gsm] : undefined)
   q = applyBand(q, 'price_per_unit', filters.price ? PRICE_BANDS[filters.price] : undefined)
 
   const term = filters.q ? sanitizeSearch(filters.q) : ''
@@ -153,17 +144,18 @@ export function applyFeedFilters<Q>(query: Q, filters: FeedFilters, matchingSell
   return q as unknown as Q
 }
 
-type Orderable = { order(column: string, options: { ascending: boolean; nullsFirst?: boolean }): Orderable }
+type Orderable = {
+  order(column: string, options: { ascending: boolean; nullsFirst?: boolean }): Orderable
+}
 
 export function applyFeedSort<Q>(query: Q, sort: string | undefined): Q {
-  // Available before on-hold in every sort (the lot_status enum lists 'available' first), so lots a
-  // buyer can actually claim lead the feed.
-  const q = (query as unknown as Orderable).order('status', { ascending: true })
+  const q = query as unknown as Orderable
   const ordered =
     sort === 'price-asc'
-      ? q.order('price_per_unit', { ascending: true })
+      ? // Lots with no price shouldn't lead a cheapest-first list.
+        q.order('price_per_unit', { ascending: true, nullsFirst: false })
       : sort === 'price-desc'
-        ? q.order('price_per_unit', { ascending: false })
+        ? q.order('price_per_unit', { ascending: false, nullsFirst: false })
         : sort === 'qty-desc'
           ? q.order('quantity', { ascending: false })
           : q

@@ -4,26 +4,18 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendWhatsAppMessage } from '@/lib/whatsapp/twilio'
-import { dealChatLink, dealSummary } from '@/lib/whatsapp/group'
 import { waLink } from '@/lib/format'
-import {
-  ClaimNotPendingError,
-  LotOnHoldError,
-  LotUnavailableError,
-  MAX_SAVED_SEARCHES,
-  acceptClaim,
-  declineClaim,
-  releaseClaim,
-  requestClaim,
-} from './queries'
+import { MAX_SAVED_SEARCHES } from './queries'
 import { describeFilters, hasActiveFilters, parseFeedFilters, searchFilters } from './filters'
-import { displayName, lotPrice, lotQuantity, lotTitle } from './display'
-import type { Claim, Lot, ProfileSummary } from './types'
+import { displayName, lotContact, lotQuantity, lotTitle } from './display'
+import type { Lot, ProfileSummary } from './types'
+import type { VerificationStatus } from '@/types/database.types'
 
-// Seller/buyer actions behind the app's buttons. Each one re-checks who's asking: server actions
-// are public endpoints, so a claim or lot id from the client proves nothing on its own.
+// Buyer and seller actions. Each one re-checks who's asking: server actions are public endpoints,
+// so a lot id from the client proves nothing on its own.
 
 export type ActionResult = { ok?: true; error?: string }
+export type ContactResult = ActionResult & { phone?: string | null; name?: string | null }
 
 type LotForAction = Pick<
   Lot,
@@ -33,19 +25,14 @@ type LotForAction = Pick<
   | 'category'
   | 'quantity'
   | 'unit'
-  | 'price_per_unit'
-  | 'currency'
-  | 'location'
   | 'status'
->
-
-type ClaimForAction = Claim & {
-  lots: LotForAction | null
-  profiles: ProfileSummary | null
-}
+  | 'verification'
+  | 'contact_phone'
+  | 'contact_name'
+> & { profiles: ProfileSummary | null }
 
 const LOT_FIELDS =
-  'id, seller_id, title, category, quantity, unit, price_per_unit, currency, location, status'
+  'id, seller_id, title, category, quantity, unit, status, verification, contact_phone, contact_name'
 const PROFILE_FIELDS = 'full_name, company_name, city, whatsapp_number'
 
 const SIGNED_OUT: ActionResult = { error: 'Your session ended. Please sign in again.' }
@@ -58,21 +45,11 @@ async function session() {
   return { supabase, user }
 }
 
-// Counts in the sidebar and the lists on every app page depend on these changes.
 function refreshApp() {
   revalidatePath('/', 'layout')
 }
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>
-
-async function loadClaim(supabase: ServerClient, claimId: string) {
-  const { data } = await supabase
-    .from('claims')
-    .select(`*, lots(${LOT_FIELDS}), profiles(${PROFILE_FIELDS})`)
-    .eq('id', claimId)
-    .maybeSingle()
-  return data as unknown as ClaimForAction | null
-}
 
 async function loadLot(supabase: ServerClient, lotId: string) {
   const { data } = await supabase
@@ -80,7 +57,7 @@ async function loadLot(supabase: ServerClient, lotId: string) {
     .select(`${LOT_FIELDS}, profiles(${PROFILE_FIELDS})`)
     .eq('id', lotId)
     .maybeSingle()
-  return data as unknown as (LotForAction & { profiles: ProfileSummary | null }) | null
+  return data as unknown as LotForAction | null
 }
 
 async function loadProfile(supabase: ServerClient, userId: string) {
@@ -89,212 +66,55 @@ async function loadProfile(supabase: ServerClient, userId: string) {
 }
 
 function failure(err: unknown, fallback: string): ActionResult {
-  if (
-    err instanceof ClaimNotPendingError ||
-    err instanceof LotOnHoldError ||
-    err instanceof LotUnavailableError
-  ) {
-    return { error: err.message }
-  }
   console.error(fallback, err)
   return { error: fallback }
 }
 
-// "1,000 meters at ₹390/meters", falling back to the lot's own quantity and price.
-function describeOffer(claim: Pick<Claim, 'offer_price' | 'offer_quantity'>, lot: LotForAction) {
-  const quantity = claim.offer_quantity ? `${claim.offer_quantity} ${lot.unit}` : lotQuantity(lot)
-  const price = claim.offer_price ? `₹${claim.offer_price}/${lot.unit}` : lotPrice(lot)
-  return `${quantity} at ${price}`
-}
+// ============ BUYER: get the seller's contact ============
 
-function optionalNumber(value: FormDataEntryValue | null) {
-  const raw = String(value ?? '').trim()
-  if (!raw) return null
-  const parsed = Number(raw)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : null
-}
-
-// ============ BUYER: request a lot ============
-
-export async function requestClaimAction(_prevState: unknown, formData: FormData): Promise<ActionResult> {
+// Hands over the number and records who asked, so the seller can see real interest in a lot.
+export async function revealContactAction(lotId: string): Promise<ContactResult> {
   const { supabase, user } = await session()
   if (!user) return SIGNED_OUT
-
-  const lotId = String(formData.get('lot_id') || '')
-  const offerPrice = optionalNumber(formData.get('offer_price'))
-  const offerQuantity = optionalNumber(formData.get('offer_quantity'))
-  const message = String(formData.get('message') || '')
-    .trim()
-    .slice(0, 500) || null
 
   const lot = await loadLot(supabase, lotId)
   if (!lot) return { error: 'Lot not found.' }
-  if (lot.seller_id === user.id) return { error: 'This is your own lot.' }
-  if (lot.status !== 'available') return { error: 'This lot is on hold or no longer available.' }
-  if (offerQuantity && offerQuantity > lot.quantity) {
-    return { error: `The seller has ${lotQuantity(lot)} in this lot.` }
-  }
 
-  const buyer = await loadProfile(supabase, user.id)
-  if (!buyer) return { error: 'Complete your profile before requesting a lot.' }
+  const { phone, name } = lotContact(lot, lot.profiles)
+  if (!phone) return { error: 'This listing has no contact number yet.' }
+  if (lot.seller_id === user.id) return { ok: true, phone, name }
 
-  try {
-    await requestClaim(supabase, createAdminClient(), lotId, user.id, {
-      offerPrice,
-      offerQuantity,
-      message,
-    })
-  } catch (err) {
-    return failure(err, 'Could not send your request.')
-  }
+  const { error } = await supabase.from('contact_views').insert({ lot_id: lotId, viewer_id: user.id })
 
-  if (lot.profiles?.whatsapp_number) {
-    const contact = buyer.whatsapp_number ? `\n${waLink(buyer.whatsapp_number)}` : ''
+  // 23505 = this buyer already looked; nothing new to record or tell the seller about.
+  if (error && error.code !== '23505') return failure(error, 'Could not open the contact details.')
+
+  if (!error && lot.profiles?.whatsapp_number) {
+    const buyer = await loadProfile(supabase, user.id)
+    const contact = buyer?.whatsapp_number ? `\n${waLink(buyer.whatsapp_number)}` : ''
     await sendWhatsAppMessage(
       lot.profiles.whatsapp_number,
-      `${displayName(buyer)}${buyer.city ? `, ${buyer.city}` : ''} wants your ${lotTitle(lot)} lot: ` +
-        `${describeOffer({ offer_price: offerPrice, offer_quantity: offerQuantity }, lot)}.` +
-        (message ? `\n"${message}"` : '') +
-        `\nAccept or decline: ${process.env.NEXT_PUBLIC_APP_URL}/my/listings${contact}`
+      `${displayName(buyer)}${buyer?.city ? `, ${buyer.city}` : ''} just took your number for ` +
+        `${lotTitle(lot)} (${lotQuantity(lot)}). Expect a call.${contact}`
     )
   }
 
   refreshApp()
-  return { ok: true }
-}
-
-// ============ SELLER: answer requests ============
-
-export async function acceptClaimAction(claimId: string): Promise<ActionResult> {
-  const { supabase, user } = await session()
-  if (!user) return SIGNED_OUT
-
-  const claim = await loadClaim(supabase, claimId)
-  if (!claim?.lots || claim.lots.seller_id !== user.id) return { error: 'Request not found.' }
-  const lot = claim.lots
-
-  let alsoDeclined: { id: string; buyer_id: string }[] = []
-  try {
-    const result = await acceptClaim(createAdminClient(), claim)
-    alsoDeclined = result.alsoDeclined
-  } catch (err) {
-    return failure(err, 'Could not accept this request.')
-  }
-
-  const seller = await loadProfile(supabase, user.id)
-  const summary = dealSummary({
-    lot,
-    seller,
-    buyer: claim.profiles,
-    offerPrice: claim.offer_price,
-    offerQuantity: claim.offer_quantity,
-  })
-
-  if (claim.profiles?.whatsapp_number) {
-    const chat = seller?.whatsapp_number ? `\n${dealChatLink(seller.whatsapp_number, summary)}` : ''
-    await sendWhatsAppMessage(
-      claim.profiles.whatsapp_number,
-      `${displayName(seller)} accepted your request for ${lotTitle(lot)}. It's on hold for you for ` +
-        `48 hours while you agree payment and pickup.${chat}`
-    )
-  }
-
-  // Everyone else waiting on this lot hears now, instead of being left guessing.
-  if (alsoDeclined.length > 0) {
-    const { data: others } = await supabase
-      .from('profiles')
-      .select('id, whatsapp_number')
-      .in(
-        'id',
-        alsoDeclined.map((row) => row.buyer_id)
-      )
-    for (const other of (others ?? []) as { id: string; whatsapp_number: string | null }[]) {
-      if (!other.whatsapp_number) continue
-      await sendWhatsAppMessage(
-        other.whatsapp_number,
-        `Your request for ${lotTitle(lot)} wasn't taken up -- the seller accepted another buyer. ` +
-          `More lots: ${process.env.NEXT_PUBLIC_APP_URL}/feed`
-      )
-    }
-  }
-
-  refreshApp()
-  return { ok: true }
-}
-
-export async function declineClaimAction(claimId: string): Promise<ActionResult> {
-  const { supabase, user } = await session()
-  if (!user) return SIGNED_OUT
-
-  const claim = await loadClaim(supabase, claimId)
-  if (!claim?.lots || claim.lots.seller_id !== user.id) return { error: 'Request not found.' }
-
-  try {
-    await declineClaim(createAdminClient(), claim)
-  } catch (err) {
-    return failure(err, 'Could not decline this request.')
-  }
-
-  if (claim.profiles?.whatsapp_number) {
-    await sendWhatsAppMessage(
-      claim.profiles.whatsapp_number,
-      `The seller couldn't go ahead with your request for ${lotTitle(claim.lots)}. ` +
-        `More lots: ${process.env.NEXT_PUBLIC_APP_URL}/feed`
-    )
-  }
-
-  refreshApp()
-  return { ok: true }
-}
-
-// ============ BUYER: withdraw a request or an accepted hold ============
-
-export async function cancelClaimAction(claimId: string): Promise<ActionResult> {
-  const { supabase, user } = await session()
-  if (!user) return SIGNED_OUT
-
-  const claim = await loadClaim(supabase, claimId)
-  if (!claim?.lots || claim.buyer_id !== user.id) return { error: 'Request not found.' }
-  const wasOnHold = claim.status === 'confirmed'
-
-  try {
-    await releaseClaim(createAdminClient(), claim)
-  } catch (err) {
-    return failure(err, 'Could not withdraw this request.')
-  }
-
-  const { data: seller } = await supabase
-    .from('profiles')
-    .select('whatsapp_number')
-    .eq('id', claim.lots.seller_id)
-    .maybeSingle()
-  if (seller?.whatsapp_number) {
-    await sendWhatsAppMessage(
-      seller.whatsapp_number,
-      wasOnHold
-        ? `${displayName(claim.profiles)} released the hold on your ${lotTitle(claim.lots)} lot. ` +
-            `It's back on the feed.`
-        : `${displayName(claim.profiles)} withdrew their request for your ${lotTitle(claim.lots)} lot.`
-    )
-  }
-
-  refreshApp()
-  return { ok: true }
+  return { ok: true, phone, name }
 }
 
 // ============ SELLER: my lots ============
 
-export async function markLotSoldAction(lotId: string): Promise<ActionResult> {
+async function setOwnLotStatus(lotId: string, status: 'sold' | 'expired'): Promise<ActionResult> {
   const { supabase, user } = await session()
   if (!user) return SIGNED_OUT
 
-  // Covers a lot on hold (the deal went through) and one sold off SurplusX.
   const { data, error } = await supabase
     .from('lots')
-    .update({ status: 'sold' })
+    .update({ status })
     .eq('id', lotId)
     .eq('seller_id', user.id)
-    .in('status', ['available', 'reserved'])
+    .eq('status', 'available')
     .select('id')
     .maybeSingle()
 
@@ -305,50 +125,126 @@ export async function markLotSoldAction(lotId: string): Promise<ActionResult> {
   return { ok: true }
 }
 
-export async function withdrawLotAction(lotId: string): Promise<ActionResult> {
+export async function markLotSoldAction(lotId: string) {
+  return setOwnLotStatus(lotId, 'sold')
+}
+
+export async function withdrawLotAction(lotId: string) {
+  return setOwnLotStatus(lotId, 'expired')
+}
+
+export async function relistLotAction(lotId: string): Promise<ActionResult> {
   const { supabase, user } = await session()
   if (!user) return SIGNED_OUT
 
   const { data, error } = await supabase
     .from('lots')
-    .update({ status: 'expired' })
+    .update({ status: 'available' })
     .eq('id', lotId)
     .eq('seller_id', user.id)
-    .eq('status', 'available')
+    .in('status', ['sold', 'expired'])
     .select('id')
     .maybeSingle()
 
-  if (error) return failure(error, 'Could not withdraw this lot.')
-  if (!data) return { error: 'A lot on hold can’t be withdrawn — settle it with the buyer first.' }
+  if (error) return failure(error, 'Could not put this lot back on the feed.')
+  if (!data) return { error: 'This lot is already on the feed.' }
 
   refreshApp()
   return { ok: true }
 }
 
-// ============ SWATCH REQUESTS ============
+// ============ VERIFICATION ============
 
-export async function requestSwatchAction(lotId: string): Promise<ActionResult> {
+// The seller asks for an on-floor check. Payment is settled off the platform, so this only records
+// the request and tells the team.
+export async function requestVerificationAction(lotId: string): Promise<ActionResult> {
   const { supabase, user } = await session()
   if (!user) return SIGNED_OUT
 
-  const lot = await loadLot(supabase, lotId)
-  if (!lot) return { error: 'Lot not found.' }
-  if (lot.seller_id === user.id) return { error: "You can't request a swatch of your own lot." }
+  const { data, error } = await supabase
+    .from('lots')
+    .update({ verification: 'requested', verification_requested_at: new Date().toISOString() })
+    .eq('id', lotId)
+    .eq('seller_id', user.id)
+    .eq('verification', 'none')
+    .select('id, title, category, quantity, unit, location')
+    .maybeSingle()
 
-  const { error } = await supabase.from('swatch_requests').insert({ lot_id: lotId, buyer_id: user.id })
-  if (error) {
-    // Already asked: nothing new to send, and the button should just show "Requested".
-    if (error.code === '23505') return { ok: true }
-    return failure(error, 'Could not send the swatch request.')
+  if (error) return failure(error, 'Could not send the verification request.')
+  if (!data) return { error: 'This lot is already being verified.' }
+
+  const team = process.env.VERIFICATION_ALERT_NUMBER
+  if (team) {
+    const seller = await loadProfile(supabase, user.id)
+    const lot = data as unknown as Pick<Lot, 'title' | 'category' | 'quantity' | 'unit' | 'location'>
+    await sendWhatsAppMessage(
+      team,
+      `Verification requested: ${lotTitle(lot)} (${lotQuantity(lot)})` +
+        `${lot.location ? ` in ${lot.location}` : ''} by ${displayName(seller)}` +
+        `${seller?.whatsapp_number ? `\n${waLink(seller.whatsapp_number)}` : ''}` +
+        `\n${process.env.NEXT_PUBLIC_APP_URL}/admin/verification`
+    )
   }
 
-  if (lot.profiles?.whatsapp_number) {
-    const buyer = await loadProfile(supabase, user.id)
-    const contact = buyer?.whatsapp_number ? `\n${waLink(buyer.whatsapp_number)}` : ''
+  refreshApp()
+  return { ok: true }
+}
+
+export async function cancelVerificationAction(lotId: string): Promise<ActionResult> {
+  const { supabase, user } = await session()
+  if (!user) return SIGNED_OUT
+
+  const { data, error } = await supabase
+    .from('lots')
+    .update({ verification: 'none', verification_requested_at: null })
+    .eq('id', lotId)
+    .eq('seller_id', user.id)
+    .in('verification', ['requested', 'scheduled'])
+    .select('id')
+    .maybeSingle()
+
+  if (error) return failure(error, 'Could not cancel the request.')
+  if (!data) return { error: 'That request is no longer open.' }
+
+  refreshApp()
+  return { ok: true }
+}
+
+// Staff only: moving a lot through the verification states. RLS only lets a seller update their own
+// lot, so this goes through the service-role client after the admin check.
+export async function setVerificationAction(
+  lotId: string,
+  status: VerificationStatus,
+  notes: string
+): Promise<ActionResult> {
+  const { supabase, user } = await session()
+  if (!user) return SIGNED_OUT
+
+  const { data: me } = await supabase.from('profiles').select('is_admin').eq('id', user.id).maybeSingle()
+  if (!me?.is_admin) return { error: 'Only the SurplusX team can change verification.' }
+
+  const verified = status === 'verified'
+  const { data, error } = await createAdminClient()
+    .from('lots')
+    .update({
+      verification: status,
+      verification_notes: notes.trim().slice(0, 1000) || null,
+      verified_at: verified ? new Date().toISOString() : null,
+      verified_by: verified ? user.id : null,
+    })
+    .eq('id', lotId)
+    .select(`id, title, category, quantity, unit, seller_id, profiles(${PROFILE_FIELDS})`)
+    .maybeSingle()
+
+  if (error) return failure(error, 'Could not update verification.')
+  if (!data) return { error: 'Lot not found.' }
+
+  const lot = data as unknown as LotForAction
+  if (verified && lot.profiles?.whatsapp_number) {
     await sendWhatsAppMessage(
       lot.profiles.whatsapp_number,
-      `${displayName(buyer)}${buyer?.city ? ` (${buyer.city})` : ''} would like a swatch of your ` +
-        `${lotTitle(lot)} lot. Message them to arrange it.${contact}`
+      `Your ${lotTitle(lot)} lot is now verified on SurplusX. Buyers see the badge and what we ` +
+        `found on the listing: ${process.env.NEXT_PUBLIC_APP_URL}/lots/${lot.id}`
     )
   }
 

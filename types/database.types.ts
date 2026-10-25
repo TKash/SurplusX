@@ -1,11 +1,25 @@
-// Hand-written to match supabase/migrations/0001_init.sql, in the same shape the
-// Supabase CLI would generate. Once a real Supabase project exists, regenerate with:
+// Hand-written to match supabase/migrations/*.sql, in the same shape the Supabase CLI would
+// generate. Once a real Supabase project exists, regenerate with:
 //   npx supabase gen types typescript --project-id <ref> > types/database.types.ts
 
 export type UserRole = 'seller' | 'buyer' | 'both'
+// 'reserved' is left over from the old claim flow and no longer used (see migration 0007).
 export type LotStatus = 'available' | 'reserved' | 'sold' | 'expired'
-export type LotUnit = 'meters' | 'kg' | 'pieces' | 'yards' | 'rolls'
-export type ClaimStatus = 'pending' | 'confirmed' | 'cancelled' | 'expired'
+export type LotUnit =
+  | 'meters'
+  | 'yards'
+  | 'kg'
+  | 'tonnes'
+  | 'pieces'
+  | 'rolls'
+  | 'bales'
+  | 'cones'
+  | 'hanks'
+  | 'cartons'
+  | 'boxes'
+  | 'gross'
+  | 'sets'
+export type VerificationStatus = 'none' | 'requested' | 'scheduled' | 'verified'
 export type DraftStatus = 'collecting' | 'awaiting_confirmation' | 'confirmed' | 'abandoned'
 export type LotSource = 'web' | 'whatsapp'
 
@@ -20,6 +34,7 @@ export interface Database {
           city: string | null
           whatsapp_number: string | null
           role: UserRole
+          is_admin: boolean
           created_at: string
         }
         Insert: {
@@ -29,6 +44,7 @@ export interface Database {
           city?: string | null
           whatsapp_number?: string | null
           role?: UserRole
+          is_admin?: boolean
           created_at?: string
         }
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>
@@ -44,16 +60,29 @@ export interface Database {
           gsm: number | null
           width_cm: number | null
           colour: string | null
+          // Category-specific details; shape per category lives in lib/lots/categories.ts.
+          attributes: Record<string, string>
           quantity: number
           unit: LotUnit
-          price_per_unit: number
+          // Null means "price on request".
+          price_per_unit: number | null
+          // Stock can be counted in one unit and priced in another (rolls held, sold per metre).
+          price_unit: LotUnit | null
           currency: string
           location: string | null
+          contact_phone: string | null
+          contact_name: string | null
           notes: string | null
           urgency_note: string | null
           photo_urls: string[]
           status: LotStatus
           source: LotSource
+          verification: VerificationStatus
+          verification_requested_at: string | null
+          verified_at: string | null
+          verified_by: string | null
+          verification_notes: string | null
+          verification_photo_urls: string[]
           expires_at: string | null
           created_at: string
           updated_at: string
@@ -67,16 +96,26 @@ export interface Database {
           gsm?: number | null
           width_cm?: number | null
           colour?: string | null
+          attributes?: Record<string, string>
           quantity: number
           unit: LotUnit
-          price_per_unit: number
+          price_per_unit?: number | null
+          price_unit?: LotUnit | null
           currency?: string
           location?: string | null
+          contact_phone?: string | null
+          contact_name?: string | null
           notes?: string | null
           urgency_note?: string | null
           photo_urls?: string[]
           status?: LotStatus
           source?: LotSource
+          verification?: VerificationStatus
+          verification_requested_at?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+          verification_notes?: string | null
+          verification_photo_urls?: string[]
           expires_at?: string | null
           created_at?: string
           updated_at?: string
@@ -91,72 +130,30 @@ export interface Database {
           },
         ]
       }
-      claims: {
+      contact_views: {
         Row: {
           id: string
           lot_id: string
-          buyer_id: string
-          status: ClaimStatus
-          // Null until the seller accepts: the 48h hold starts then, not when the request is sent.
-          reserved_until: string | null
-          offer_price: number | null
-          offer_quantity: number | null
-          message: string | null
-          responded_at: string | null
+          viewer_id: string
           created_at: string
         }
         Insert: {
           id?: string
           lot_id: string
-          buyer_id: string
-          status?: ClaimStatus
-          reserved_until?: string | null
-          offer_price?: number | null
-          offer_quantity?: number | null
-          message?: string | null
-          responded_at?: string | null
+          viewer_id: string
           created_at?: string
         }
-        Update: Partial<Database['public']['Tables']['claims']['Insert']>
+        Update: Partial<Database['public']['Tables']['contact_views']['Insert']>
         Relationships: [
           {
-            foreignKeyName: 'claims_lot_id_fkey'
+            foreignKeyName: 'contact_views_lot_id_fkey'
             columns: ['lot_id']
             referencedRelation: 'lots'
             referencedColumns: ['id']
           },
           {
-            foreignKeyName: 'claims_buyer_id_fkey'
-            columns: ['buyer_id']
-            referencedRelation: 'profiles'
-            referencedColumns: ['id']
-          },
-        ]
-      }
-      swatch_requests: {
-        Row: {
-          id: string
-          lot_id: string
-          buyer_id: string
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          lot_id: string
-          buyer_id: string
-          created_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['swatch_requests']['Insert']>
-        Relationships: [
-          {
-            foreignKeyName: 'swatch_requests_lot_id_fkey'
-            columns: ['lot_id']
-            referencedRelation: 'lots'
-            referencedColumns: ['id']
-          },
-          {
-            foreignKeyName: 'swatch_requests_buyer_id_fkey'
-            columns: ['buyer_id']
+            foreignKeyName: 'contact_views_viewer_id_fkey'
+            columns: ['viewer_id']
             referencedRelation: 'profiles'
             referencedColumns: ['id']
           },
@@ -224,7 +221,7 @@ export interface Database {
       user_role: UserRole
       lot_status: LotStatus
       lot_unit: LotUnit
-      claim_status: ClaimStatus
+      verification_status: VerificationStatus
       draft_status: DraftStatus
     }
     CompositeTypes: Record<string, never>

@@ -2,11 +2,11 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Handshake, LayoutGrid, Package, Plus, Scissors } from 'lucide-react'
+import { BadgeCheck, Bookmark, LayoutGrid, Package, Plus } from 'lucide-react'
 import type { AppCounts } from '@/lib/lots/queries'
 
-// Phone replacement for the sidebar: the four app sections plus a raised "Post" button.
-export default function MobileTabBar({ counts }: { counts: AppCounts }) {
+// Phone replacement for the sidebar: the app's sections plus a raised "Post" button.
+export default function MobileTabBar({ counts, isAdmin }: { counts: AppCounts; isAdmin: boolean }) {
   const pathname = usePathname()
 
   const tabs = [
@@ -17,15 +17,32 @@ export default function MobileTabBar({ counts }: { counts: AppCounts }) {
       active: pathname === '/feed' || (pathname.startsWith('/lots/') && pathname !== '/lots/new'),
       badge: 0,
     },
-    { href: '/my/listings', label: 'Listings', icon: Package, active: pathname.startsWith('/my/listings'), badge: counts.awaitingYou },
+    {
+      href: '/my/listings',
+      label: 'Listings',
+      icon: Package,
+      active: pathname.startsWith('/my/listings'),
+      badge: counts.interest,
+    },
     { href: '/lots/new', label: 'Post', icon: Plus, active: pathname === '/lots/new', badge: 0, primary: true },
-    { href: '/my/claims', label: 'Claims', icon: Handshake, active: pathname.startsWith('/my/claims'), badge: counts.activeClaims },
-    { href: '/my/swatches', label: 'Swatches', icon: Scissors, active: pathname.startsWith('/my/swatches'), badge: 0 },
-  ]
+    { href: '/my/saved', label: 'Saved', icon: Bookmark, active: pathname.startsWith('/my/saved'), badge: 0 },
+    isAdmin
+      ? {
+          href: '/admin/verification',
+          label: 'Verify',
+          icon: BadgeCheck,
+          active: pathname.startsWith('/admin'),
+          badge: 0,
+        }
+      : null,
+  ].filter((tab): tab is NonNullable<typeof tab> => tab !== null)
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
-      <div className="mx-auto grid max-w-md grid-cols-5">
+      <div
+        className="mx-auto grid max-w-md"
+        style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
+      >
         {tabs.map(({ href, label, icon: Icon, active, badge, primary }) => (
           <Link
             key={href}

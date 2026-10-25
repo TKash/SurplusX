@@ -9,13 +9,13 @@ type NavItem = {
   label: string
   active: boolean
   count?: number
-  // Needs the user's attention (claims to act on): shown as a terracotta pill instead of a plain number.
+  // Worth the seller's attention: shown as a terracotta pill rather than a plain number.
   alert?: boolean
   title?: string
 }
 
-export function navItems(pathname: string, counts: AppCounts): NavItem[] {
-  return [
+export function navItems(pathname: string, counts: AppCounts, isAdmin = false): NavItem[] {
+  const items: NavItem[] = [
     {
       href: '/feed',
       label: 'Browse stock',
@@ -26,28 +26,30 @@ export function navItems(pathname: string, counts: AppCounts): NavItem[] {
       href: '/my/listings',
       label: 'My listings',
       active: pathname.startsWith('/my/listings'),
-      count: counts.awaitingYou || counts.activeListings,
-      alert: counts.awaitingYou > 0,
-      title: counts.awaitingYou > 0 ? `${counts.awaitingYou} claim(s) waiting for you` : undefined,
+      count: counts.interest || counts.activeListings,
+      alert: counts.interest > 0,
+      title: counts.interest > 0 ? `${counts.interest} buyer(s) took your contact` : undefined,
     },
-    {
-      href: '/my/claims',
-      label: 'My claims',
-      active: pathname.startsWith('/my/claims'),
-      count: counts.activeClaims || undefined,
-      alert: counts.activeClaims > 0,
-    },
-    { href: '/my/swatches', label: 'Swatch requests', active: pathname.startsWith('/my/swatches') },
     { href: '/my/saved', label: 'Saved searches', active: pathname.startsWith('/my/saved') },
   ]
+
+  if (isAdmin) {
+    items.push({
+      href: '/admin/verification',
+      label: 'Verification',
+      active: pathname.startsWith('/admin'),
+    })
+  }
+
+  return items
 }
 
-export default function SidebarNav({ counts }: { counts: AppCounts }) {
+export default function SidebarNav({ counts, isAdmin }: { counts: AppCounts; isAdmin: boolean }) {
   const pathname = usePathname()
 
   return (
     <nav className="flex flex-col gap-[3px]">
-      {navItems(pathname, counts).map((item) => (
+      {navItems(pathname, counts, isAdmin).map((item) => (
         <Link
           key={item.href}
           href={item.href}

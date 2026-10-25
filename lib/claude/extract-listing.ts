@@ -1,26 +1,30 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
-import { LOT_CATEGORIES, LOT_UNITS } from '@/lib/constants'
+import { LOT_UNITS } from '@/lib/constants'
+import { CATEGORY_SPECS, LOT_CATEGORIES, categorySpec, isLotCategory } from '@/lib/lots/categories'
+
+// Turns a seller's WhatsApp message into listing fields. Only `category`, `quantity` and `unit` are
+// needed to publish -- price can be "on request" and everything else is optional, so a seller can
+// send two lines and still end up with a listing.
 
 const extractedListingSchema = z.object({
   category: z.string().nullable(),
   title: z.string().nullable(),
-  spec: z.string().nullable(),
-  gsm: z.number().int().positive().nullable(),
-  width_cm: z.number().int().positive().nullable(),
-  colour: z.string().nullable(),
   quantity: z.number().positive().nullable(),
   unit: z.enum(LOT_UNITS).nullable(),
   price_per_unit: z.number().positive().nullable(),
+  price_unit: z.enum(LOT_UNITS).nullable(),
   currency: z.string(),
   location: z.string().nullable(),
   urgency_note: z.string().nullable(),
   notes: z.string().nullable(),
+  // Category-specific details (GSM, count, size ratio...), keyed as in lib/lots/categories.ts.
+  attributes: z.record(z.string(), z.string()),
 })
 
 export type ExtractedListing = z.infer<typeof extractedListingSchema>
 
-export const REQUIRED_LISTING_FIELDS = ['category', 'quantity', 'unit', 'price_per_unit'] as const
+export const REQUIRED_LISTING_FIELDS = ['category', 'quantity', 'unit'] as const
 
 const TOOL_NAME = 'record_listing_fields'
 
@@ -30,28 +34,26 @@ function getClient() {
   return client
 }
 
-// Also the defaults for drafts saved before title/gsm/width_cm/colour existed: spreading an older
-// draft's parsed_fields over this keeps the newer keys null instead of undefined.
 const emptyFields: ExtractedListing = {
   category: null,
   title: null,
-  spec: null,
-  gsm: null,
-  width_cm: null,
-  colour: null,
   quantity: null,
   unit: null,
   price_per_unit: null,
+  price_unit: null,
   currency: 'INR',
   location: null,
   urgency_note: null,
   notes: null,
+  attributes: {},
 }
 
-// Extracts structured listing fields from one WhatsApp message. Only reports
-// fields explicitly present in `newMessage` -- merging with prior state is done
-// deterministically in code below, not left to the model, so a correction like
-// "actually 1800m not 2000" reliably overrides just that one field.
+// Every attribute key the model may use, with the category it belongs to, so the prompt can name
+// them and anything invented gets dropped.
+const ATTRIBUTE_GUIDE = LOT_CATEGORIES.map(
+  (category) => `${category}: ${CATEGORY_SPECS[category].fields.map((field) => field.key).join(', ')}`
+).join('\n')
+
 export async function extractListingFields({
   newMessage,
   existingFields,
@@ -60,12 +62,12 @@ export async function extractListingFields({
   existingFields?: Partial<ExtractedListing>
 }): Promise<ExtractedListing> {
   const system =
-    'You extract structured textile/fabric surplus listing data from a WhatsApp message ' +
-    'sent by a seller (mill owner or broker). Call the record_listing_fields tool with ONLY ' +
-    'the fields explicitly mentioned or corrected in this specific message -- omit any field ' +
-    'not mentioned. Quantities and prices must be plain numbers with no currency symbols or ' +
-    'unit text mixed in. GSM and width are whole numbers; convert a width given in inches to ' +
-    'centimetres (x 2.54, rounded).'
+    'You extract structured surplus-textile listing data from a WhatsApp message sent by a seller ' +
+    '(mill owner, agent or broker). Call the record_listing_fields tool with ONLY the fields ' +
+    'explicitly mentioned or corrected in this specific message -- omit anything not mentioned. ' +
+    'Quantities and prices are plain numbers, with no currency symbols or unit text. Put ' +
+    'category-specific details in `attributes`, using only these keys:\n' +
+    ATTRIBUTE_GUIDE
 
   const message = await getClient().messages.create({
     model: 'claude-haiku-4-5-20251001',
@@ -79,31 +81,21 @@ export async function extractListingFields({
         input_schema: {
           type: 'object',
           properties: {
-            category: {
-              type: 'string',
-              enum: [...LOT_CATEGORIES],
-              description: 'Material category. Use Blended for mixed fibres and Other if none fit.',
-            },
-            title: {
-              type: 'string',
-              description:
-                'Short name buyers will see, e.g. "Organic cotton jersey" or "Linen twill". Only ' +
-                'if the message makes the fabric clear.',
-            },
-            spec: {
-              type: 'string',
-              description: 'Any other spec detail, e.g. yarn count, weave, composition, finish',
-            },
-            gsm: { type: 'integer', description: 'Fabric weight in GSM' },
-            width_cm: { type: 'integer', description: 'Fabric width in centimetres' },
-            colour: { type: 'string', description: 'Colour or shade, e.g. "ecru, undyed"' },
+            category: { type: 'string', enum: [...LOT_CATEGORIES] },
+            title: { type: 'string', description: 'Short name buyers will see, e.g. "Organic cotton jersey"' },
             quantity: { type: 'number' },
             unit: { type: 'string', enum: [...LOT_UNITS] },
-            price_per_unit: { type: 'number', description: 'Price per single unit' },
+            price_per_unit: { type: 'number', description: 'Omit if the seller says price on request' },
+            price_unit: { type: 'string', enum: [...LOT_UNITS], description: 'The unit the price is per' },
             currency: { type: 'string' },
-            location: { type: 'string', description: 'City or region' },
+            location: { type: 'string', description: 'City or region where the stock is' },
             urgency_note: { type: 'string', description: 'e.g. "need to clear by Friday"' },
             notes: { type: 'string' },
+            attributes: {
+              type: 'object',
+              description: 'Category-specific details, as plain strings. Use only the listed keys.',
+              additionalProperties: { type: 'string' },
+            },
           },
           required: [],
         },
@@ -117,41 +109,54 @@ export async function extractListingFields({
   )
   if (!toolUse) throw new Error('Claude did not return structured listing fields.')
 
-  const raw = toolUse.input as Partial<Record<keyof ExtractedListing, unknown>>
+  const raw = toolUse.input as Record<string, unknown>
   const base = { ...emptyFields, ...existingFields }
+  const category = normalizeCategory(raw.category) ?? base.category
 
   const merged: ExtractedListing = {
-    category: normalizeCategory(raw.category) ?? base.category,
+    category,
     title: (raw.title as string | undefined) ?? base.title,
-    spec: (raw.spec as string | undefined) ?? base.spec,
-    gsm: wholeNumber(raw.gsm) ?? base.gsm,
-    width_cm: wholeNumber(raw.width_cm) ?? base.width_cm,
-    colour: (raw.colour as string | undefined) ?? base.colour,
-    quantity: (raw.quantity as number | undefined) ?? base.quantity,
+    quantity: positiveNumber(raw.quantity) ?? base.quantity,
     unit: (raw.unit as ExtractedListing['unit']) ?? base.unit,
-    price_per_unit: (raw.price_per_unit as number | undefined) ?? base.price_per_unit,
+    price_per_unit: positiveNumber(raw.price_per_unit) ?? base.price_per_unit,
+    price_unit: (raw.price_unit as ExtractedListing['price_unit']) ?? base.price_unit,
     currency: (raw.currency as string | undefined) ?? base.currency,
     location: (raw.location as string | undefined) ?? base.location,
     urgency_note: (raw.urgency_note as string | undefined) ?? base.urgency_note,
     notes: (raw.notes as string | undefined) ?? base.notes,
+    // A correction replaces the fields it mentions and leaves the rest alone.
+    attributes: { ...base.attributes, ...cleanAttributes(raw.attributes, category) },
   }
 
   return extractedListingSchema.parse(merged)
 }
 
-// Keeps categories on the fixed list the feed's chips filter by, whatever casing the model uses.
 function normalizeCategory(value: unknown): string | undefined {
   if (typeof value !== 'string' || !value.trim()) return undefined
-  return LOT_CATEGORIES.find((category) => category.toLowerCase() === value.trim().toLowerCase()) ?? 'Other'
+  const match = LOT_CATEGORIES.find((category) => category.toLowerCase() === value.trim().toLowerCase())
+  return match ?? 'Fabrics'
 }
 
-// The model occasionally sends 180.0 or "180"; anything that isn't a positive number is ignored
-// rather than failing the whole extraction on an optional field.
-function wholeNumber(value: unknown): number | undefined {
+function positiveNumber(value: unknown): number | undefined {
   const n = typeof value === 'string' ? Number(value) : value
-  return typeof n === 'number' && Number.isFinite(n) && n > 0 ? Math.round(n) : undefined
+  return typeof n === 'number' && Number.isFinite(n) && n > 0 ? n : undefined
+}
+
+// Keeps only keys the category actually defines, so a hallucinated field never reaches a listing.
+function cleanAttributes(value: unknown, category: string | null): Record<string, string> {
+  if (!value || typeof value !== 'object') return {}
+  const allowed = new Set(
+    (isLotCategory(category) ? categorySpec(category) : categorySpec('Fabrics')).fields.map((f) => f.key)
+  )
+  const out: Record<string, string> = {}
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    if (!allowed.has(key)) continue
+    const text = String(raw ?? '').trim()
+    if (text) out[key] = text.slice(0, 200)
+  }
+  return out
 }
 
 export function computeMissingFields(fields: Partial<ExtractedListing>): string[] {
-  return REQUIRED_LISTING_FIELDS.filter((f) => fields[f] === null || fields[f] === undefined)
+  return REQUIRED_LISTING_FIELDS.filter((field) => fields[field] === null || fields[field] === undefined)
 }

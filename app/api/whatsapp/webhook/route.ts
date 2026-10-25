@@ -9,16 +9,16 @@ import {
 import { parseInboundMessage } from '@/lib/whatsapp/parse-inbound'
 import { validateTwilioSignature, downloadTwilioMedia } from '@/lib/whatsapp/twilio'
 import { MAX_LOT_PHOTOS } from '@/lib/constants'
+import { attributeSummary } from '@/lib/lots/categories'
 import type { Database } from '@/types/database.types'
 
 type Draft = Database['public']['Tables']['pending_listing_drafts']['Row']
 type AdminClient = ReturnType<typeof createAdminClient>
 
 const FIELD_PROMPTS: Record<string, string> = {
-  category: 'the material (e.g. cotton, polyester, denim, yarn)',
+  category: 'what it is -- fibre, yarn, fabric, trims or garments',
   quantity: 'the quantity available',
-  unit: 'the unit -- meters, kg, pieces, yards, or rolls',
-  price_per_unit: 'the price per unit',
+  unit: 'the unit -- meters, kg, pieces, cones, bales, cartons…',
 }
 
 const YES_PATTERN = /^(yes|y|confirm|correct|ok|okay)\b/i
@@ -36,12 +36,11 @@ function reply(message: string) {
 function summarize(fields: ExtractedListing) {
   const bits = [
     fields.title ?? fields.category,
-    fields.gsm ? `${fields.gsm} GSM` : null,
-    fields.width_cm ? `${fields.width_cm} cm wide` : null,
-    fields.colour,
-    fields.spec,
+    ...attributeSummary(fields.category ?? 'Fabrics', fields.attributes),
     fields.quantity && fields.unit ? `${fields.quantity} ${fields.unit}` : null,
-    fields.price_per_unit ? `Rs ${fields.price_per_unit}/${fields.unit ?? 'unit'}` : null,
+    fields.price_per_unit
+      ? `Rs ${fields.price_per_unit}/${fields.price_unit ?? fields.unit ?? 'unit'}`
+      : 'price on request',
     fields.location,
     fields.urgency_note,
   ].filter(Boolean)
@@ -309,15 +308,15 @@ async function publishDraft(
       seller_id: profileId,
       category: fields.category!,
       title: fields.title,
-      spec: fields.spec,
-      gsm: fields.gsm,
-      width_cm: fields.width_cm,
-      colour: fields.colour,
+      attributes: fields.attributes,
       quantity: fields.quantity!,
       unit: fields.unit!,
-      price_per_unit: fields.price_per_unit!,
+      price_per_unit: fields.price_per_unit,
+      price_unit: fields.price_per_unit ? (fields.price_unit ?? fields.unit!) : null,
       currency: fields.currency,
       location: fields.location,
+      // Buyers contact the seller directly, and this is the number they messaged us from.
+      contact_phone: draft.whatsapp_number,
       notes: fields.notes,
       urgency_note: fields.urgency_note,
       photo_urls: photoUrls,

@@ -1,6 +1,6 @@
 // Device mockups for the marketing page. They mirror screens the app really has: the feed, the
 // post-a-lot form, a published listing and an accepted request on hold. Nothing here shows a
-// feature that doesn't exist -- no escrow, no in-app inspection report.
+// feature that doesn't exist -- no escrow, no claims, no in-app inspection report.
 
 const MONO = 'font-plexmono'
 
@@ -25,7 +25,6 @@ export function LaptopMock() {
             <span className="text-[14px] tracking-[-0.02em]">SurplusX</span>
           </div>
           <div className="rounded-lg bg-white px-2.5 py-2 text-[12.5px] shadow-[0_1px_2px_rgba(28,26,23,0.06)]">Browse stock</div>
-          <div className="px-2.5 py-2 text-[12.5px] text-[#6E685E]">My claims</div>
           <div className="px-2.5 py-2 text-[12.5px] text-[#6E685E]">My listings</div>
           <div className="px-2.5 py-2 text-[12.5px] text-[#6E685E]">Saved searches</div>
           <div className="mt-auto rounded-lg bg-[#1C1A17] px-2.5 py-[9px] text-center text-[12px] text-[#FBFAF7]">
@@ -41,7 +40,7 @@ export function LaptopMock() {
           </div>
           <div className="flex flex-wrap gap-1.5 text-[11.5px]">
             <span className="rounded-full bg-[#1C1A17] px-2.5 py-[5px] text-[#FBFAF7]">All lots</span>
-            {['Cotton', 'Linen', 'Denim', 'Viscose', 'Yarn'].map((chip) => (
+            {['Fibre', 'Yarns', 'Fabrics', 'Trims', 'Garments'].map((chip) => (
               <span key={chip} className="rounded-full border border-[#E1DACC] px-2.5 py-[5px]">
                 {chip}
               </span>
@@ -60,9 +59,10 @@ export function LaptopMock() {
                     <span className={`${MONO} font-medium`}>{lot.price}</span>
                   </div>
                   <div className="text-[10.5px] text-[#8E887E]">{lot.meta}</div>
-                  <div className="mt-[5px] flex gap-[5px]">
-                    <span className="flex-1 rounded-[6px] bg-[#1C1A17] p-1 text-center text-[10.5px] text-[#FBFAF7]">Claim</span>
-                    <span className="flex-1 rounded-[6px] border border-[#E1DACC] p-1 text-center text-[10.5px]">Swatch</span>
+                  <div className="mt-[5px]">
+                    <span className="block rounded-[6px] bg-[#1C1A17] p-1 text-center text-[10.5px] text-[#FBFAF7]">
+                      Show contact
+                    </span>
                   </div>
                 </div>
               </div>
@@ -127,8 +127,8 @@ export function PhoneLotMock() {
         </div>
       </div>
       <div className="mx-3.5 mb-4 mt-auto flex gap-2">
-        <span className="flex-1 rounded-[14px] border border-[#E1DACC] p-3 text-center text-[13px]">Swatch</span>
-        <span className="flex-[1.6] rounded-[14px] bg-[#E8892F] p-3 text-center text-[13px]">Claim lot</span>
+        <span className="flex-1 rounded-[14px] border border-[#E1DACC] p-3 text-center text-[13px]">Call</span>
+        <span className="flex-[1.6] rounded-[14px] bg-[#E8892F] p-3 text-center text-[13px]">WhatsApp seller</span>
       </div>
     </PhoneShell>
   )
@@ -213,38 +213,38 @@ export function ListingLiveScreen() {
   )
 }
 
-// Step 3 — a buyer's request accepted, the lot on hold, contact shared.
-export function HoldScreen() {
+// Step 3 — buyers take the seller's number and come straight to them.
+export function InterestScreen() {
   return (
     <PhoneShell tall>
       <div className="flex flex-1 flex-col gap-3 px-[18px] pb-[18px] pt-1.5">
         <div className={`text-[10px] tracking-[0.08em] text-[#8E887E] ${MONO}`}>MY LISTINGS · LINEN TWILL</div>
-        <div className="text-[22px] leading-[1.1] tracking-[-0.03em]">1,200 m requested</div>
-        <div className="flex flex-col gap-1 rounded-[16px] border border-[#ECE7DD] bg-white p-3.5">
-          <div className="text-[11px] text-[#8E887E]">Buyer</div>
-          <div className="text-[14px]">Sourcing agent · Leeds, UK</div>
-          <div className="text-[11.5px] text-[#6E685E]">Asked at ₹395 per metre</div>
+        <div className="text-[22px] leading-[1.1] tracking-[-0.03em]">3 buyers interested</div>
+        <div className="flex flex-col gap-2">
+          {[
+            ['Sourcing agent · Leeds', 'took your number today'],
+            ['Garment unit · Tirupur', 'took your number yesterday'],
+            ['Trader · Surat', 'took your number on Monday'],
+          ].map(([who, when]) => (
+            <div
+              key={who}
+              className="flex items-center justify-between gap-2 rounded-[14px] border border-[#ECE7DD] bg-white p-3"
+            >
+              <div className="min-w-0">
+                <div className="truncate text-[13.5px]">{who}</div>
+                <div className="truncate text-[11.5px] text-[#8E887E]">{when}</div>
+              </div>
+              <span className="shrink-0 rounded-[8px] bg-[#1C1A17] px-2.5 py-1.5 text-[11px] text-[#FBFAF7]">Chat</span>
+            </div>
+          ))}
         </div>
-        <div className="flex flex-col gap-1.5 rounded-[16px] bg-[#1C1A17] p-4 text-[#FBFAF7]">
-          <div className={`text-[10px] tracking-[0.08em] opacity-70 ${MONO}`}>ON HOLD FOR THIS BUYER</div>
-          <div className="text-[28px] tracking-[-0.03em]">47h left</div>
-          <div className="text-[11.5px] opacity-75">Agree payment and pickup between you</div>
-        </div>
-        <div className="flex flex-col gap-2 text-[12px]">
-          <div className="flex items-center gap-2.5">
-            <span className="h-2 w-2 rounded-full bg-[#1C1A17]" />
-            Request accepted
-          </div>
-          <div className="flex items-center gap-2.5">
-            <span className="h-2 w-2 rounded-full bg-[#E8892F]" />
-            Pickup being arranged
-          </div>
-          <div className="flex items-center gap-2.5 text-[#8E887E]">
-            <span className="box-border h-2 w-2 rounded-full border-[1.5px] border-[#C9C1B2]" />
-            Marked sold
+        <div className="flex flex-col gap-1.5 rounded-[16px] bg-[#F1EDE5] p-4">
+          <div className={`text-[10px] tracking-[0.08em] text-[#8E887E] ${MONO}`}>WHEN IT’S GONE</div>
+          <div className="text-[13px] leading-[1.5] text-[#4A463F]">
+            Mark the lot sold and it leaves the feed, so nobody calls about stock you no longer have.
           </div>
         </div>
-        <div className="mt-auto rounded-[14px] bg-[#E8892F] p-3.5 text-center text-[13.5px]">WhatsApp buyer</div>
+        <div className="mt-auto rounded-[14px] bg-[#E8892F] p-3.5 text-center text-[13.5px]">Mark as sold</div>
       </div>
     </PhoneShell>
   )

@@ -1,61 +1,48 @@
 import Link from 'next/link'
 import type { LotWithSeller } from '@/lib/lots/types'
-import { lotOrigin, lotPrice, lotQuantity, lotSpecLine, lotTitle } from '@/lib/lots/display'
+import { lotContact, lotOrigin, lotPrice, lotQuantity, lotSpecLine, lotTitle } from '@/lib/lots/display'
 import { PhotoPlaceholder, Pill } from './ui'
-import ClaimRequestButton from './ClaimRequestButton'
-import SwatchButton from './SwatchButton'
+import ContactButton from './ContactButton'
 
 export default function LotCard({
   lot,
   isOwn,
-  swatchRequested,
-  alreadyRequested = false,
+  revealed = false,
 }: {
   lot: LotWithSeller
   isOwn: boolean
-  swatchRequested: boolean
-  alreadyRequested?: boolean
+  revealed?: boolean
 }) {
   const title = lotTitle(lot)
   const spec = lotSpecLine(lot)
   const origin = lotOrigin(lot, lot.profiles)
   const href = `/lots/${lot.id}`
-  // On hold: still listed so buyers can see what's moving, but nothing to act on until it frees up.
-  const onHold = lot.status === 'reserved'
+  const { phone, name } = lotContact(lot, lot.profiles)
 
   return (
-    <article
-      className={`flex flex-col overflow-hidden rounded-[14px] border bg-surface ${
-        onHold ? 'border-dashed border-line' : 'border-border'
-      }`}
-    >
-      <Link href={href} className={`group relative block aspect-[3/2] overflow-hidden bg-sand ${onHold ? 'opacity-55' : ''}`}>
+    <article className="flex flex-col overflow-hidden rounded-[14px] border border-border bg-surface">
+      <Link href={href} className="group relative block aspect-[3/2] overflow-hidden bg-sand">
         {lot.photo_urls[0] ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={lot.photo_urls[0]}
             alt={title}
-            className={`absolute inset-0 h-full w-full object-cover transition-transform duration-500 ${
-              onHold ? 'grayscale' : 'group-hover:scale-[1.03]'
-            }`}
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
           />
         ) : (
           <PhotoPlaceholder label={title} />
         )}
-        {onHold ? (
-          <span className="absolute left-3 top-3">
-            <Pill tone="accent">On hold</Pill>
-          </span>
-        ) : (
-          lot.urgency_note && (
-            <span className="absolute left-3 top-3 max-w-[calc(100%-24px)] truncate rounded-[5px] bg-[rgba(247,244,238,0.94)] px-2 py-[5px] font-mono text-[10px] tracking-[0.06em] uppercase">
+        <span className="absolute left-3 top-3 flex gap-1.5">
+          {lot.verification === 'verified' && <Pill tone="ok">✓ Verified</Pill>}
+          {lot.urgency_note && (
+            <span className="max-w-[180px] truncate rounded-[5px] bg-[rgba(247,244,238,0.94)] px-2 py-[5px] font-mono text-[10px] tracking-[0.06em] uppercase">
               {lot.urgency_note}
             </span>
-          )
-        )}
+          )}
+        </span>
       </Link>
 
-      <div className={`flex flex-1 flex-col gap-2.5 p-4 ${onHold ? 'opacity-70' : ''}`}>
+      <div className="flex flex-1 flex-col gap-2.5 p-4">
         <div className="flex items-baseline justify-between gap-3">
           <Link
             href={href}
@@ -80,20 +67,8 @@ export default function LotCard({
             <Link href={href} className="rounded-lg border border-line px-3 py-2 text-[13px] text-muted hover:text-foreground">
               Your lot
             </Link>
-          ) : onHold ? (
-            <span className="text-[13px] text-muted">Held for another buyer</span>
           ) : (
-            <div className="flex gap-2">
-              <SwatchButton lotId={lot.id} requested={swatchRequested} />
-              <ClaimRequestButton
-                lotId={lot.id}
-                lotTitle={title}
-                quantity={lot.quantity}
-                unit={lot.unit}
-                pricePerUnit={lot.price_per_unit}
-                alreadyRequested={alreadyRequested}
-              />
-            </div>
+            <ContactButton lotId={lot.id} revealed={revealed} phone={phone} name={name} />
           )}
         </div>
       </div>

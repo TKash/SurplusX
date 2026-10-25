@@ -29,7 +29,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Logo tone="light" />
         </Link>
 
-        <SidebarNav counts={counts} />
+        <SidebarNav counts={counts} isAdmin={profile.is_admin} />
 
         <Link
           href="/lots/new"
@@ -120,7 +120,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         {children}
       </div>
 
-      <MobileTabBar counts={counts} />
+      <MobileTabBar counts={counts} isAdmin={profile.is_admin} />
     </div>
   )
 }

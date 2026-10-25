@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { requireProfile } from '@/lib/auth/guards'
-import { LOT_CATEGORIES } from '@/lib/constants'
+import { LOT_CATEGORIES } from '@/lib/lots/categories'
+import { VERIFICATION_BLURB } from '@/lib/constants'
 import {
-  GSM_BANDS,
   PRICE_BANDS,
   QTY_BANDS,
   SORTS,
@@ -12,15 +12,7 @@ import {
   searchFilters,
   type FeedFilters,
 } from '@/lib/lots/filters'
-import {
-  getFeed,
-  getMyClaims,
-  getRequestedLotIds,
-  getSavedSearches,
-  getSwatchLotIds,
-} from '@/lib/lots/queries'
-import { lotOrigin, lotTitle } from '@/lib/lots/display'
-import { timeLeftLabel } from '@/lib/lots/time'
+import { getAppCounts, getFeed, getRevealedLotIds, getSavedSearches } from '@/lib/lots/queries'
 import { markSavedSearchSeenAction } from '@/lib/lots/actions'
 import LotCard from '@/components/app/LotCard'
 import Dropdown, { MenuLink } from '@/components/app/Dropdown'
@@ -28,11 +20,9 @@ import SaveSearchButton from '@/components/app/SaveSearchButton'
 import SavedSearchLink from '@/components/app/SavedSearchLink'
 import ActionButton from '@/components/app/ActionButton'
 import { EmptyState, Eyebrow } from '@/components/app/ui'
-import { ClaimStatusBadge } from '@/components/app/StatusBadge'
 
 const FILTER_MENUS = [
   { key: 'qty', label: 'Quantity', bands: QTY_BANDS },
-  { key: 'gsm', label: 'GSM', bands: GSM_BANDS },
   { key: 'price', label: 'Price', bands: PRICE_BANDS },
 ] as const
 
@@ -55,7 +45,7 @@ function Chip({ href, active, children }: { href: string; active: boolean; child
 function HiddenFilters({ filters }: { filters: FeedFilters }) {
   return (
     <>
-      {(['category', 'qty', 'gsm', 'price', 'sort'] as const).map((key) =>
+      {(['category', 'qty', 'price', 'verified', 'sort'] as const).map((key) =>
         filters[key] ? <input key={key} type="hidden" name={key} value={filters[key]} /> : null
       )}
     </>
@@ -70,12 +60,11 @@ export default async function FeedPage({
   const { supabase, user } = await requireProfile()
   const filters = parseFeedFilters(await searchParams)
 
-  const [{ lots, total }, activeClaims, swatchLotIds, requestedLotIds, savedSearches] = await Promise.all([
+  const [{ lots, total }, revealedLotIds, savedSearches, counts] = await Promise.all([
     getFeed(supabase, filters),
-    getMyClaims(supabase, user.id, { activeOnly: true, limit: 3 }),
-    getSwatchLotIds(supabase, user.id),
-    getRequestedLotIds(supabase, user.id),
+    getRevealedLotIds(supabase, user.id),
     getSavedSearches(supabase, user.id),
+    getAppCounts(supabase, user.id),
   ])
 
   const filtering = hasActiveFilters(filters)
@@ -101,7 +90,7 @@ export default async function FeedPage({
             name="q"
             type="search"
             defaultValue={filters.q}
-            placeholder="Fabric, GSM, colour, city or mill"
+            placeholder="Fibre, count, GSM, colour, city or mill"
             className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted"
           />
           <HiddenFilters filters={filters} />
@@ -163,6 +152,17 @@ export default async function FeedPage({
                 </Dropdown>
               )
             })}
+            <Link
+              href={feedHref(filters, { verified: filters.verified ? undefined : '1' })}
+              scroll={false}
+              className={`rounded-lg px-3 py-2 text-[13px] transition-colors ${
+                filters.verified
+                  ? 'border border-foreground bg-sand font-semibold'
+                  : 'border border-line text-ink-soft hover:border-muted-light'
+              }`}
+            >
+              ✓ Verified only
+            </Link>
             {filters.q && (
               <Link
                 href={feedHref(filters, { q: undefined })}
@@ -218,7 +218,7 @@ export default async function FeedPage({
               <Link href="/feed" className="text-foreground underline underline-offset-4">
                 see every lot
               </Link>
-              . Save this search to see new matches as they’re posted.
+              . Save this search to hear about new matches.
             </EmptyState>
           ) : (
             <EmptyState title="No lots on the floor yet">
@@ -236,8 +236,7 @@ export default async function FeedPage({
                 key={lot.id}
                 lot={lot}
                 isOwn={lot.seller_id === user.id}
-                swatchRequested={swatchLotIds.has(lot.id)}
-                alreadyRequested={requestedLotIds.has(lot.id)}
+                revealed={revealedLotIds.has(lot.id)}
               />
             ))}
           </div>
@@ -253,65 +252,39 @@ export default async function FeedPage({
       <div className="px-4 pb-9 pt-[26px] sm:px-7">
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.25fr_0.75fr]">
           <section className="rounded-[14px] bg-sand p-5 sm:p-[26px]">
-            <Eyebrow className="mb-4">Your claims in progress</Eyebrow>
-            {activeClaims.length === 0 ? (
+            <Eyebrow className="mb-4">Your stock</Eyebrow>
+            {counts.activeListings === 0 ? (
               <p className="text-sm leading-relaxed text-ink-soft">
-                Claim a lot to tell the seller what you want and at what price. If they accept, it’s
-                held for you for 48 hours — requests and holds show up here.
+                Nothing listed yet. Post a lot and buyers call you directly — no bidding, no middleman.
               </p>
             ) : (
-              <div className="flex flex-col gap-3.5">
-                {activeClaims.map(
-                  (claim) =>
-                    claim.lots && (
-                      <Link
-                        key={claim.id}
-                        href={`/lots/${claim.lots.id}`}
-                        className="flex items-center gap-3.5 rounded-[10px] bg-background px-4 py-3.5 transition-colors hover:bg-surface"
-                      >
-                        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-line">
-                          {claim.lots.photo_urls[0] && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={claim.lots.photo_urls[0]} alt="" className="absolute inset-0 h-full w-full object-cover" />
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-[14.5px] font-semibold">{lotTitle(claim.lots)}</div>
-                          <div className="truncate text-[13px] text-muted">
-                            {[lotOrigin(claim.lots, claim.lots.profiles), timeLeftLabel(claim.reserved_until)]
-                              .filter(Boolean)
-                              .join(' · ')}
-                          </div>
-                        </div>
-                        <span className="hidden sm:inline-flex">
-                          <ClaimStatusBadge status={claim.status} />
-                        </span>
-                      </Link>
-                    )
-                )}
-              </div>
+              <p className="text-[15px] leading-relaxed text-ink-soft">
+                You have <strong className="font-semibold text-foreground">{counts.activeListings}</strong>{' '}
+                {counts.activeListings === 1 ? 'lot' : 'lots'} on the feed, and{' '}
+                <strong className="font-semibold text-foreground">{counts.interest}</strong>{' '}
+                {counts.interest === 1 ? 'buyer has' : 'buyers have'} taken your contact.
+              </p>
             )}
-            <Link href="/my/claims" className="mt-4 inline-block border-b border-[#C9C2B2] pb-0.5 text-sm">
-              All my claims
+            <Link href="/my/listings" className="mt-4 inline-block border-b border-[#C9C2B2] pb-0.5 text-sm">
+              My listings
             </Link>
           </section>
 
           <section className="flex flex-col justify-between rounded-[14px] bg-foreground p-5 text-background sm:p-[26px]">
             <div>
               <div className="mb-3.5 font-mono text-[10px] tracking-[0.1em] text-[rgba(247,244,238,0.6)]">
-                SITTING IN YOUR SHED?
+                SELLING FASTER
               </div>
-              <div className="mb-3 font-display text-[27px] leading-[1.15]">Post a lot in ten minutes</div>
+              <div className="mb-3 font-display text-[27px] leading-[1.15]">Get a lot verified</div>
               <p className="text-sm leading-[1.6] text-[rgba(247,244,238,0.72)]">
-                Photos, the spec and a price are all it takes. Buyers claim it and deal with you
-                directly, and the stock stays on your floor until you’ve agreed terms.
+                {VERIFICATION_BLURB} Verified lots carry a badge buyers can filter for.
               </p>
             </div>
             <Link
-              href="/lots/new"
+              href="/my/listings"
               className="mt-[22px] block rounded-[10px] bg-accent-bright p-3.5 text-center text-[15px] font-semibold text-foreground transition-opacity hover:opacity-90"
             >
-              + Post a lot
+              Ask for a check
             </Link>
           </section>
         </div>

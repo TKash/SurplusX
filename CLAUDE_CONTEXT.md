@@ -475,12 +475,12 @@ the CTA correctly routing to `/login`.
 
 > **Update 2026-09-14 -- shipped to production.** Parts of this file predate it;
 > where they conflict, this block wins.
-> - Live at **https://loomover.vercel.app** (Vercel Hobby, GitHub repo
->   `TKash/loomover`, branch `main` auto-deploys). Framework Preset had to be
+> - Live at **https://surplus-x.vercel.app** (Vercel Hobby, GitHub repo
+>   `TKash/surplusx`, branch `main` auto-deploys). Framework Preset had to be
 >   set to Next.js manually (import on an empty repo left it as "Other", which
 >   served only `public/` and 404'd every route). Deployment Protection is off.
 >   Production env vars are set in Vercel; `NEXT_PUBLIC_APP_URL` =
->   `https://loomover.vercel.app`.
+>   `https://surplus-x.vercel.app`.
 > - Branded **SurplusX**; `app/page.tsx` is a GSAP-animated marketing site with
 >   an inline phone sign-up form (`components/PhoneSignupForm.tsx`).
 > - **Login codes**: SMS to Indian numbers now fails (Twilio error 30008,

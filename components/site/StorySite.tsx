@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
-import { HoldScreen, LaptopMock, ListingLiveScreen, PhoneLotMock, PostLotScreen } from './mocks'
+import { InterestScreen, LaptopMock, ListingLiveScreen, PhoneLotMock, PostLotScreen } from './mocks'
 
 // Marketing page from the "SurplusX Story Site" Claude Design handoff. Scroll drives everything:
 // the hero pins and dissolves, three phrases type themselves in, the selling steps swap the phone
@@ -30,15 +30,15 @@ const STEPS = [
   },
   {
     n: '02',
-    title: 'We check',
-    titleRest: 'every roll.',
-    body: 'We come to your floor, re-measure the metreage, look over the rolls and group the dye lots. What we find goes on the listing, so buyers know what they’re getting.',
+    title: 'Want it checked?',
+    titleRest: 'We’ll come and look.',
+    body: 'Optional and paid: we visit your floor, re-measure the stock, look over the rolls and group the dye lots. What we find goes on the listing, and the lot carries a verified badge buyers can filter for.',
   },
   {
     n: '03',
-    title: 'A buyer claims.',
-    titleRest: 'You deal direct.',
-    body: 'Buyers send a request with the quantity and price they want. Accept one and the lot is held for them for 48 hours while you agree payment and pickup between you.',
+    title: 'Buyers call you.',
+    titleRest: 'The deal stays yours.',
+    body: 'Anyone interested takes your number straight off the listing and gets in touch. Price, payment and pickup are between you — we don’t sit in the middle or take a cut.',
   },
 ]
 
@@ -202,7 +202,7 @@ export default function StorySite() {
     return () => cancelAnimationFrame(frame)
   }, [])
 
-  const screens = [<PostLotScreen key="0" />, <ListingLiveScreen key="1" />, <HoldScreen key="2" />]
+  const screens = [<PostLotScreen key="0" />, <ListingLiveScreen key="1" />, <InterestScreen key="2" />]
 
   return (
     <main className="relative min-h-dvh flex-1 overflow-x-clip bg-[#F4F1EB] font-rom text-[#1C1A17] antialiased">
@@ -239,7 +239,7 @@ export default function StorySite() {
             Browse stock
           </a>
           <a href="#standard" className="hidden px-3.5 py-[9px] text-[15px] transition-opacity hover:opacity-75 sm:block">
-            Inspection
+            Verification
           </a>
           <Link href="/login" className="px-3 py-[9px] text-[14px] transition-opacity hover:opacity-75 sm:px-3.5 sm:text-[15px]">
             Log in
@@ -286,8 +286,8 @@ export default function StorySite() {
             </h1>
 
             <p className="mx-auto mt-[22px] max-w-[500px] text-[clamp(15px,1.25vw,17px)] leading-[1.55] text-[rgba(255,255,255,0.94)] [text-wrap:pretty]">
-              SurplusX is the exchange for mills and sourcing agents. List leftover rolls, we check them on
-              your floor, and buyers claim what they need — you deal with them directly.
+              SurplusX is the exchange for mills, agents and garment units. List what’s left over — fibre,
+              yarn, fabric, trims or garments — and buyers call you directly.
             </p>
 
             <div className="mt-7 flex flex-wrap justify-center gap-2.5">
@@ -367,7 +367,7 @@ export default function StorySite() {
       <section id="story" className="relative z-[1] px-[clamp(20px,6vw,96px)] pb-[120px] pt-10">
         <div className="mb-6 font-plexmono text-[12px] tracking-[0.14em] text-[#8E887E]">02 — HOW SELLING WORKS</div>
         <h2 className="m-0 mb-[72px] max-w-[980px] font-arizona text-[clamp(36px,5vw,72px)] leading-[1.02] font-normal tracking-[-0.05em] [text-wrap:balance]">
-          Three steps. <span className="text-[#9A9488]">Your stock stays on your floor until it’s sold.</span>
+          Three steps. <span className="text-[#9A9488]">Your stock stays on your floor, and the deal stays yours.</span>
         </h2>
 
         <div className="grid grid-cols-1 items-start gap-[clamp(32px,6vw,96px)] lg:grid-cols-2">
@@ -466,36 +466,31 @@ export default function StorySite() {
           <FeatureCard
             image="/site/lot-linen.jpg"
             alt="Sage linen twill"
-            title="No double-selling"
-            body="Once you accept a request, that lot is held for that buyer for 48 hours, so two people never turn up for the same rolls."
+            title="Verified, if you want it"
+            body="Pay for a visit and we re-measure the stock on your floor. The listing then carries what we found, and a badge buyers filter for."
           >
             <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.12)] px-[18px] py-4">
-              <span className="font-plexmono text-[11px] tracking-[0.16em]">CLAIM HOLD</span>
-              <span className="font-plexmono text-[11px] text-[rgba(251,250,247,0.7)]">LINEN TWILL</span>
+              <span className="font-plexmono text-[11px] tracking-[0.16em]">VERIFIED LOT</span>
+              <span className="rounded-full bg-[#FBFAF7] px-2 py-1 font-plexmono text-[10.5px] tracking-[0.06em] text-[#1C1A17]">
+                ✓ CHECKED
+              </span>
             </div>
             <div className="flex flex-col gap-3.5 p-[18px]">
-              <div className="flex items-baseline justify-between">
-                <span className="text-[14px]">Held for Leeds buyer</span>
-                <span className="text-[26px] tracking-[-0.03em]">47:12:08</span>
-              </div>
-              <div className="h-1.5 overflow-hidden rounded-md bg-[rgba(255,255,255,0.14)]">
-                <div className="h-full w-[98%] rounded-md bg-[#FBFAF7]" />
-              </div>
-              <div className="flex justify-between font-plexmono text-[10.5px] tracking-[0.06em] text-[rgba(251,250,247,0.6)]">
-                <span>ACCEPTED 11:04</span>
-                <span>RELEASES IN 48 H</span>
-              </div>
-              <div className="mt-1 flex flex-col gap-2">
-                <div className="flex items-center justify-between rounded-[10px] bg-[rgba(255,255,255,0.1)] px-3 py-[11px] text-[13px]">
-                  <span>1,860 m · linen twill</span>
-                  <span className="rounded-full bg-[#FBFAF7] px-2 py-1 font-plexmono text-[10.5px] tracking-[0.06em] text-[#1C1A17]">
-                    ON HOLD
-                  </span>
+              {[
+                ['Metreage, re-measured', '4,186 m'],
+                ['Rolls seen', '18 of 18'],
+                ['Shade groups', '2 dye lots'],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="flex justify-between gap-3 border-b border-[rgba(255,255,255,0.1)] pb-2.5 text-[13px]"
+                >
+                  <span className="text-[rgba(251,250,247,0.65)]">{label}</span>
+                  <span>{value}</span>
                 </div>
-                <div className="flex items-center justify-between rounded-[10px] border border-[rgba(255,255,255,0.12)] px-3 py-[11px] text-[13px] text-[rgba(251,250,247,0.6)]">
-                  <span>Second buyer, Surat</span>
-                  <span className="font-plexmono text-[10.5px] tracking-[0.06em]">UNAVAILABLE</span>
-                </div>
+              ))}
+              <div className="text-[13px] leading-[1.5] text-[rgba(251,250,247,0.8)]">
+                “Counted on a metre counter with the mill’s man present. Two shade groups, kept separate.”
               </div>
             </div>
           </FeatureCard>
@@ -504,7 +499,7 @@ export default function StorySite() {
             image="/site/lot-crepe.jpg"
             alt="Dusty rose viscose crepe"
             title="The deal stays yours"
-            body="When you accept a request, you get the buyer’s contact. Price, payment and pickup are between you."
+            body="Buyers take your number off the listing and call you. Price, payment and pickup are between you, and we take no cut."
           >
             <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.12)] px-[18px] py-4">
               <span className="font-plexmono text-[11px] tracking-[0.16em]">BUYER CONTACT</span>
@@ -607,7 +602,7 @@ export default function StorySite() {
               [
                 '02',
                 'Fewer fresh runs',
-                'A claimed lot replaces a new order: no extra cotton grown, no extra water, dye or power spent weaving it again.',
+                'A sold lot replaces a new order: no extra cotton grown, no extra water, dye or power spent weaving it again.',
               ],
               [
                 '03',
@@ -639,14 +634,14 @@ export default function StorySite() {
           <div>
             <div className="mb-6 font-plexmono text-[12px] tracking-[0.14em] text-[#8E887E]">05 — THE STANDARD</div>
             <h2 className="m-0 mb-10 font-arizona text-[clamp(34px,4.2vw,60px)] leading-[1.03] font-normal tracking-[-0.05em] [text-wrap:balance]">
-              Surplus has a reputation problem. <span className="text-[#9A9488]">So we look at every lot ourselves.</span>
+              Surplus has a reputation problem. <span className="text-[#9A9488]">So you can have your lot checked in person.</span>
             </h2>
             <div className="grid grid-cols-1 gap-x-9 gap-y-7 sm:grid-cols-2">
               {[
-                ['Metre-verified quantity', 'Re-measured on the floor, not copied from the mill’s paperwork.'],
-                ['Faults noted per roll', 'What we find is written into the listing before a buyer commits.'],
-                ['Shade continuity', 'Rolls grouped by dye lot, so a large order cuts as one shade.'],
-                ['Photos and spec on the listing', 'Fibre, GSM, width and colour, with photos of the actual rolls.'],
+                ['Metre-verified quantity', 'Re-measured on your floor, not copied from the mill’s paperwork.'],
+                ['What we found, in writing', 'Rolls seen, faults noted and shade groups, written onto the listing.'],
+                ['A badge buyers filter for', 'Verified lots stand out on the feed and in search.'],
+                ['Optional and paid', 'Ask for it on any of your lots; we quote the visit and settle it with you.'],
               ].map(([title, body]) => (
                 <div key={title} className="border-t border-[#DDD6C9] pt-4">
                   <div className="mb-1.5 text-[18px] tracking-[-0.02em]">{title}</div>
@@ -706,7 +701,7 @@ export default function StorySite() {
               How it works
             </a>
             <a href="#standard" className="transition-opacity hover:opacity-75">
-              Inspection
+              Verification
             </a>
             <Link href="/terms" className="transition-opacity hover:opacity-75">
               Terms
