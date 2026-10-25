@@ -62,13 +62,13 @@ export default function VerificationForm({
           type="button"
           onClick={() => submit('none')}
           disabled={pending}
-          className="rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-red-700 transition-colors hover:border-red-300 disabled:opacity-60"
+          className="rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-danger transition-colors hover:border-danger/40 disabled:opacity-60"
         >
           Close request
         </button>
         {done && <span className="text-[13px] text-ok">{done}</span>}
         {error && (
-          <span role="alert" className="text-[13px] text-red-700">
+          <span role="alert" className="text-[13px] text-danger">
             {error}
           </span>
         )}

@@ -26,7 +26,7 @@ export default function SaveSearchButton({ filters }: { filters: Record<string, 
         {saved ? 'Saved — new matches will show in your sidebar' : pending ? 'Saving…' : 'Save this search'}
       </button>
       {error && (
-        <span role="alert" className="mt-1 text-xs text-red-700">
+        <span role="alert" className="mt-1 text-xs text-danger">
           {error}
         </span>
       )}

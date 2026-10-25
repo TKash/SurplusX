@@ -18,22 +18,30 @@
   font-display: swap;
 }
 
-/* Palette from the Claude Design app screens (warm paper, sand, ink, terracotta). */
+/* One palette for the whole product: the tokens from the SurplusX design handoff, used by the
+   marketing site and the signed-in app alike. */
 :root {
-  --background: #f7f4ee;
-  --surface: #ffffff;
-  --sand: #ede7da;
-  --foreground: #1e1b16;
-  --ink-soft: #4a4438;
-  --muted: #6e6455;
-  --muted-light: #a59b8d;
-  --border: #e4dfd2;
-  --line: #ded8c9;
-  --accent: oklch(0.55 0.11 45);
-  --accent-hover: oklch(0.49 0.11 45);
-  --accent-bright: oklch(0.62 0.13 45);
-  --accent-foreground: #fdfbf7;
-  --ok: oklch(0.5 0.12 145);
+  --background: #f4f1eb;
+  --surface: #fbfaf7;
+  --sand: #f1ede5;
+  --foreground: #1c1a17;
+  --ink-soft: #5e594f;
+  --muted: #6e685e;
+  --muted-light: #8e887e;
+  --border: #ece7dd;
+  --line: #e1dacc;
+  /* Orange is for fills, which carry ink-coloured text; the darker terracotta is for accent text
+     on paper, where the bright orange would be too faint to read. */
+  --accent: #e8892f;
+  --accent-hover: #d27322;
+  --accent-bright: #e8892f;
+  --accent-foreground: #1c1a17;
+  --accent-text: #d27322;
+  --ok: #4a6b46;
+  --ok-soft: #e8efe2;
+  /* Errors and destructive actions: a deep rust that belongs to this palette, where a stock red
+     would fight the terracotta. */
+  --danger: #9c3b16;
 }
 
 @theme inline {
@@ -50,20 +58,31 @@
   --color-accent-hover: var(--accent-hover);
   --color-accent-bright: var(--accent-bright);
   --color-accent-foreground: var(--accent-foreground);
+  --color-accent-text: var(--accent-text);
   --color-ok: var(--ok);
-  --font-sans: var(--font-plex-sans);
+  --color-ok-soft: var(--ok-soft);
+  --color-danger: var(--danger);
+  /* Arizona Flare for headings, ABC ROM for text, IBM Plex Mono for labels and figures --
+     the same three faces across the marketing site and the app. */
+  --font-sans: var(--font-rom);
   --font-mono: var(--font-plex-mono);
-  --font-display: var(--font-instrument-serif);
-  --font-plex: var(--font-plex-sans);
-  --font-plexmono: var(--font-plex-mono);
-  /* Marketing site only; the app keeps Instrument Serif + IBM Plex. */
+  --font-display: var(--font-arizona);
   --font-arizona: 'ABC Arizona Flare', Georgia, serif;
   --font-rom: 'ABC ROM', 'Helvetica Neue', system-ui, sans-serif;
+  --font-plex: var(--font-rom);
+  --font-plexmono: var(--font-plex-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Arizona Flare is drawn tight; the handoff sets this on every heading. */
+.font-display {
+  letter-spacing: -0.05em;
 }
 
 /* Marketing site ambient motion: the shadow layer drifts and the sky slowly pans. Both are

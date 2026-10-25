@@ -54,7 +54,7 @@ export function Pill({
     plain: 'border border-line bg-surface text-foreground',
     accent: 'bg-accent text-accent-foreground',
     dark: 'bg-foreground text-background',
-    ok: 'bg-[oklch(0.94_0.04_145)] text-ok',
+    ok: 'bg-ok-soft text-ok',
     quiet: 'bg-sand text-muted',
   }
   return (

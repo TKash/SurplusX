@@ -140,7 +140,7 @@ export default function OtpModal({
           </div>
 
           {state?.error && (
-            <p role="alert" className="mb-3 text-sm text-red-700">
+            <p role="alert" className="mb-3 text-sm text-danger">
               {state.error}
             </p>
           )}
@@ -156,7 +156,7 @@ export default function OtpModal({
 
         <div className="text-center text-[13px] text-muted">
           {resendError && (
-            <p role="alert" className="mb-1.5 text-red-700">
+            <p role="alert" className="mb-1.5 text-danger">
               {resendError}
             </p>
           )}

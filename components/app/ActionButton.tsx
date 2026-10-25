@@ -6,7 +6,7 @@ import type { ActionResult } from '@/lib/lots/actions'
 const VARIANTS = {
   dark: 'rounded-lg bg-foreground px-3.5 py-2 text-[13px] font-semibold text-background hover:opacity-85',
   plain: 'rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-foreground hover:border-muted-light',
-  danger: 'rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-red-700 hover:border-red-300',
+  danger: 'rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-danger hover:border-danger/40',
   link: 'text-sm text-muted hover:text-foreground',
 }
 
@@ -51,7 +51,7 @@ export default function ActionButton({
         {pending ? (pendingLabel ?? `${label}…`) : label}
       </button>
       {error && (
-        <span role="alert" className="mt-1.5 max-w-64 text-xs text-red-700">
+        <span role="alert" className="mt-1.5 max-w-64 text-xs text-danger">
           {error}
         </span>
       )}

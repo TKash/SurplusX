@@ -102,7 +102,7 @@ export default async function LotDetailPage({ params }: { params: Promise<{ id: 
           )}
 
           {lot.verification === 'verified' && (
-            <section className="mt-4 rounded-[14px] border border-[rgba(42,110,60,0.25)] bg-[oklch(0.96_0.03_145)] p-4 sm:p-5">
+            <section className="mt-4 rounded-[14px] border border-ok/25 bg-ok-soft p-4 sm:p-5">
               <div className="mb-2 flex items-center gap-2.5">
                 <VerificationBadge status="verified" />
                 {lot.verified_at && <span className="text-[13px] text-muted">{postedAgo(lot.verified_at)}</span>}
@@ -129,7 +129,7 @@ export default async function LotDetailPage({ params }: { params: Promise<{ id: 
 
           {lot.urgency_note && (
             <div className="rounded-[10px] bg-sand px-4 py-3 text-sm text-ink-soft">
-              <span className="mr-2 font-mono text-[10.5px] tracking-[0.06em] text-accent">TIMING</span>
+              <span className="mr-2 font-mono text-[10.5px] tracking-[0.06em] text-accent-text">TIMING</span>
               {lot.urgency_note}
             </div>
           )}

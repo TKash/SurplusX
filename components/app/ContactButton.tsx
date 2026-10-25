@@ -77,8 +77,8 @@ export default function ContactButton({
           role="alert"
           className={
             variant === 'full'
-              ? 'mt-2 text-sm text-red-700'
-              : 'absolute right-0 top-full z-10 mt-1.5 w-52 rounded-lg border border-border bg-surface p-2 text-right text-xs text-red-700 shadow-sm'
+              ? 'mt-2 text-sm text-danger'
+              : 'absolute right-0 top-full z-10 mt-1.5 w-52 rounded-lg border border-border bg-surface p-2 text-right text-xs text-danger shadow-sm'
           }
         >
           {error}
