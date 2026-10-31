@@ -12,7 +12,7 @@ const plexMono = IBM_Plex_Mono({
 
 export const metadata: Metadata = {
   title: "SurplusX — the surplus textile exchange",
-  description: "The marketplace for textile surplus. Post leftover fabric and yarn lots; buyers claim them and deal with you directly.",
+  description: "The marketplace for textile surplus. Post leftover fibre, yarn, fabric, trims and garment lots; buyers get your number and deal with you directly.",
 };
 
 export default function RootLayout({

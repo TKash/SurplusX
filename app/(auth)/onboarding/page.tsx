@@ -33,8 +33,8 @@ export default async function OnboardingPage() {
           <div className="mb-3.5 font-mono text-[11px] tracking-[0.1em] text-muted">ONE LAST STEP</div>
           <h1 className="mb-2 font-display text-[36px] leading-[1.05] font-normal">Tell us about your business</h1>
           <p className="mb-7 text-sm leading-relaxed text-muted">
-            Buyers and sellers see this when you post, claim or ask for a swatch, so they know who they’re
-            dealing with.
+            Buyers see this on the lots you post, and sellers see it when you ask for their contact
+            number, so everyone knows who they’re dealing with.
           </p>
           <OnboardingForm defaultWhatsApp={signedInPhone} />
         </div>
